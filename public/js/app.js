@@ -507,6 +507,8 @@ async function handleAuth(e) {
   }
 }
 
+window.handleAuth = handleAuth;
+
 function setAuth(token, user) {
   state.token = token;
   state.user = user;
