@@ -78,10 +78,28 @@ router.get('/:coupleId', (req, res) => {
   sql += ` ORDER BY m.created_at DESC LIMIT ?`;
   params.push(parseInt(limit, 10));
   const rows = db.prepare(sql).all(...params).reverse();
+  // Fetch reactions for all messages
+  const messageIds = rows.map(m => m.id);
+  const reactionsByMessage = {};
+  if (messageIds.length > 0) {
+    const placeholders = messageIds.map(() => '?').join(',');
+    const reactionRows = db.prepare(
+      `SELECT r.message_id, r.emoji, r.user_id, u.name AS user_name
+       FROM message_reactions r
+       JOIN users u ON u.id = r.user_id
+       WHERE r.message_id IN (${placeholders})`
+    ).all(...messageIds);
+    for (const r of reactionRows) {
+      if (!reactionsByMessage[r.message_id]) reactionsByMessage[r.message_id] = {};
+      if (!reactionsByMessage[r.message_id][r.emoji]) reactionsByMessage[r.message_id][r.emoji] = [];
+      reactionsByMessage[r.message_id][r.emoji].push({ user_id: r.user_id, user_name: r.user_name });
+    }
+  }
   const messages = rows.map(m => ({
     ...m,
     metadata: m.metadata ? JSON.parse(m.metadata) : null,
     media_metadata: m.media_metadata ? JSON.parse(m.media_metadata) : null,
+    reactions: reactionsByMessage[m.id] || {},
   }));
   return res.json({ messages });
 });

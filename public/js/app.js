@@ -10,6 +10,7 @@ let state = {
   members: [],
   messages: [],
   language: 'en',
+  aiConsent: { both_consented: false, my_consent: false, partner_consents: {} },
   ws: null,
   wsConnected: false,
 };
@@ -65,6 +66,22 @@ const LABELS = {
     fillAll: 'Please fill in all fields.',
     invalidEmail: 'Please enter a valid email.',
     minPassword: 'Password must be at least 8 characters.',
+    aiConsentTitle: 'AI Participation',
+    aiConsentDesc: 'AI can analyze conversations when both partners consent',
+    aiConsentEnabled: 'AI participation enabled',
+    aiConsentDisabled: 'AI participation disabled',
+    aiAnalysis: 'AI Analysis',
+    aiPattern: 'Communication Patterns',
+    aiMisunderstanding: 'Potential Misunderstandings',
+    aiReplySuggestion: 'Suggested Replies',
+    aiConversationSummary: 'Conversation Summary',
+    mediaUpload: 'Upload Media',
+    editMessage: 'Edit',
+    deleteMessage: 'Delete',
+    replyTo: 'Reply',
+    readBy: 'Read by',
+    reactions: 'Reactions',
+    addReaction: 'Add reaction',
   },
   hi: {
     appName: 'प्रोजेक्ट हार्मनी',
@@ -321,6 +338,57 @@ const LABELS = {
     invalidEmail: 'Insira um e-mail válido.',
     minPassword: 'A senha deve ter pelo menos 8 caracteres.',
   },
+  hinglish: {
+    appName: 'Project Harmony',
+    signIn: 'Sign in karo',
+    signUp: 'Account banayein',
+    email: 'Email',
+    password: 'Password',
+    name: 'Poora naam',
+    country: 'Desh',
+    language: 'Bhasha',
+    login: 'Login karo',
+    register: 'Register karo',
+    haveAccount: 'Pehle se account hai?',
+    noAccount: 'Account nahi hai?',
+    couples: 'Aapke rishtay',
+    createCouple: 'Rishtay banayein',
+    partnerEmail: 'Partner ka email',
+    noCouples: 'Abhi tak koi rishtay nahi banaya hai.',
+    createFirst: 'Apne partner ko message karna shuru karne ke liye pehla rishtay banayein.',
+    messages: 'Messages',
+    aiCoach: 'AI Coach',
+    aiMediate: 'AI Mediation',
+    aiInsight: 'Rishtay Insight',
+    goals: 'Goals aur Commitments',
+    createGoal: 'Goal add karein',
+    goalTitle: 'Goal ka title',
+    goalDesc: 'Description',
+    targetDate: 'Target date',
+    commitments: 'Commitments',
+    addCommitment: 'Commitment add karein',
+    commitmentTitle: 'Commitment ka title',
+    owner: 'Owner',
+    dueDate: 'Due date',
+    sendMessage: 'Message likhein...',
+    typing: 'Type kar raha hai...',
+    healthScore: 'Rishtay ka health',
+    connect: 'Connect ho raha hai...',
+    connected: 'Connect hai',
+    disconnected: 'Disconnect ho gaya',
+    logout: 'Logout karein',
+    back: 'Wapas',
+    profile: 'Profile',
+    settings: 'Settings',
+    welcome: 'Welcome',
+    error: 'Error',
+    success: 'Success',
+    saving: 'Save ho raha hai...',
+    saved: 'Save ho gaya!',
+    fillAll: 'Kripya saare field bharein.',
+    invalidEmail: 'Kripya ek valid email dalein.',
+    minPassword: 'Password kam se kam 8 characters ka ho.',
+  },
 };
 
 function t(key) {
@@ -394,6 +462,7 @@ function showAuth() {
               <option value="fr">Français</option>
               <option value="de">Deutsch</option>
               <option value="pt">Português</option>
+              <option value="hinglish">Hinglish</option>
             </select>
           </div>
           ` : ''}
@@ -491,7 +560,7 @@ function shellHtml() {
 function renderLangSelect() {
   const sel = document.getElementById('langSelect');
   if (!sel) return;
-  const langs = { en:'English', hi:'हिन्दी', es:'Español', fr:'Français', de:'Deutsch', pt:'Português' };
+  const langs = { en:'English', hi:'हिन्दी', es:'Español', fr:'Français', de:'Deutsch', pt:'Português', hinglish:'Hinglish' };
   sel.innerHTML = Object.entries(langs).map(([k,v]) => `<option value="${k}" ${k===state.language?'selected':''}>${v}</option>`).join('');
 }
 
@@ -581,9 +650,35 @@ async function openCouple(coupleId) {
   } catch (err) { toast(err.message || t('error'),'error'); return; }
   await loadMessages(coupleId);
   await loadGoals(coupleId);
+  await fetchAiConsent(coupleId);
   renderSidebar();
   renderCoupleView();
   initWS();
+}
+
+async function fetchAiConsent(cid) {
+  try {
+    const data = await api(`/api/ai/consent/${cid}`);
+    state.aiConsent = data;
+  } catch (err) { /* consent endpoint may not exist yet */ }
+}
+
+async function toggleAiConsent() {
+  if (!state.activeCoupleId) return;
+  const newConsent = !state.aiConsent.my_consent;
+  try {
+    const data = await api('/api/ai/consent', {
+      method: 'POST',
+      body: JSON.stringify({ couple_id: state.activeCoupleId, consented: newConsent })
+    });
+    state.aiConsent = data;
+    renderMessageList();
+    if (!data.both_consented) {
+      toast(t('aiConsentDisabled') || 'AI participation disabled for you');
+    } else {
+      toast(t('aiConsentEnabled') || 'AI participation enabled');
+    }
+  } catch (err) { toast(err.message || t('error'),'error'); }
 }
 
 async function loadMessages(cid) {
@@ -610,23 +705,45 @@ function renderMessageList() {
           </div>
         </div>
         <div style="display:flex;gap:6px;">
+          <div class="ai-participation ${state.aiConsent.both_consented ? 'enabled' : 'disabled'}" onclick="toggleAiConsent()">
+            <div class="ai-toggle ${state.aiConsent.both_consented ? 'enabled' : ''}"></div>
+            <span>${t('aiConsentTitle')}</span>
+          </div>
           <button onclick="showAI('coach')" class="ai-btn ai-coach">💬 ${t('aiCoach')}</button>
-          <button onclick="showAI('mediate')" class="ai-btn ai-mediate">🤝 ${t('aiMediate')}</button>
-          <button onclick="showAI('insight')" class="ai-btn ai-insight">🔍 ${t('aiInsight')}</button>
+          <button onclick="showAI('mediate')" class="ai-btn ai-mediate" ${!state.aiConsent.both_consented ? 'disabled' : ''}>🤝 ${t('aiMediate')}</button>
+          <button onclick="showAI('insight')" class="ai-btn ai-insight" ${!state.aiConsent.both_consented ? 'disabled' : ''}>🔍 ${t('aiInsight')}</button>
+          <button onclick="showAIAnalysis('pattern')" class="ai-btn ai-pattern" ${!state.aiConsent.both_consented ? 'disabled' : ''}>📊 ${t('aiPattern')}</button>
         </div>
       </div>
       <div class="messages-container">
         <div class="messages-list" id="messagesList">
-          ${state.messages.map(m => `
-            <div class="message ${m.sender_id === me ? 'me' : 'them'}">
-              ${m.type !== 'text' ? `<span class="ai-badge">${m.type.replace(/_/g,' ')}</span>` : ''}
-              <div class="message-content">${escapeHtml(m.content)}</div>
-              <span class="message-meta">${escapeHtml(m.sender_name || 'You')} • ${formatTime(m.created_at)}</span>
+          ${state.messages.map(m => {
+            const isMe = m.sender_id === me;
+            const isDeleted = m.deleted_at;
+            const reactions = m.reactions || {};
+            const reactionHtml = Object.entries(reactions).map(([emoji, users]) => `
+              <button class="reaction-btn ${users.some(u=>u.user_id===me)?'active':''}" onclick="toggleReaction('${m.id}','${escapeHtml(emoji)}')">${emoji} ${users.length}</button>
+            `).join('');
+            const mediaHtml = m.media_type ? `<div class="media-msg"><${m.media_type === 'image' ? 'img' : m.media_type === 'video' ? 'video' : 'div'} src="${escapeHtml(m.media_url||'')}" ${m.media_type === 'video' ? 'controls' : ''} style="${m.media_type !== 'image' && m.media_type !== 'video' ? 'background:#e2e8f0;padding:8px;border-radius:4px;color:var(--text-muted)' : ''}">${m.media_type !== 'image' && m.media_type !== 'video' ? '📎 ' + escapeHtml(m.media_type) : ''}</${m.media_type === 'image' ? 'img' : m.media_type === 'video' ? 'video' : 'div'}></div>` : '';
+            return `
+            <div class="message ${isMe ? 'me' : 'them'}${isDeleted ? ' text-muted' : ''}" id="msg-${m.id}">
+              <div class="message-header-row">
+                <span class="message-sender">${escapeHtml(m.sender_name || 'You')}</span>
+                ${isMe ? `<span style="font-size:0.65rem;">${m.read_at ? '✓✓' : '✓'}</span>` : ''}
+              </div>
+              ${isDeleted ? '<div class="message-content">This message was deleted</div>' : mediaHtml}
+              <div class="message-content">${escapeHtml(m.content || '')}</div>
+              ${m.reply_to ? `<div style="font-size:0.75rem;color:var(--text-muted);border-left:2px solid var(--border);padding-left:6px;margin-bottom:4px;">↩ Reply</div>` : ''}
+              <div class="message-meta">${formatTime(m.created_at)}${m.edited_at ? ' • edited' : ''}</div>
+              <div class="reaction-row">${reactionHtml}</div>
+              ${isMe ? `<div style="margin-top:6px;display:flex;gap:4px;"><button onclick="editMessage('${m.id}')" class="btn btn-sm btn-outline" style="font-size:0.75rem;">${t('editMessage')}</button><button onclick="deleteMessage('${m.id}')" class="btn btn-sm btn-outline" style="font-size:0.75rem;color:var(--error);">${t('deleteMessage')}</button></div>` : ''}
             </div>
-          `).join('')}
+          `}).join('')}
           <div id="typingIndicator" class="typing-indicator hidden"></div>
         </div>
         <div class="message-input-area">
+          <input type="file" id="mediaFile" accept="image/*,video/*,audio/*" style="display:none" />
+          <label onclick="document.getElementById('mediaFile').click()" class="btn btn-sm btn-outline" title="${t('mediaUpload')}">📎</label>
           <input type="text" id="msgInput" placeholder="${t('sendMessage')}" />
           <button onclick="sendMessage()" class="btn btn-primary">${t('sendMessage').slice(0,1).toUpperCase()}</button>
         </div>
@@ -635,6 +752,9 @@ function renderMessageList() {
   `;
   document.getElementById('msgInput')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
   document.getElementById('msgInput')?.addEventListener('input', () => { broadcastTyping(); });
+  document.getElementById('mediaFile')?.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) uploadAndSendMedia(e.target.files[0]);
+  });
   scrollMessages();
   renderLangSelect();
 }
@@ -690,6 +810,90 @@ function handleWS(data) {
 function broadcastTyping() {
   if (!state.ws || state.ws.readyState !== 1) return;
   state.ws.send(JSON.stringify({ type:'typing', couple_id: state.activeCoupleId, user_name: state.user?.name }));
+}
+
+async function toggleReaction(messageId, emoji) {
+  try {
+    await api(`/api/messages/${messageId}/reaction`, { method:'POST', body: JSON.stringify({ emoji }) });
+    await loadMessages(state.activeCoupleId);
+  } catch (err) { toast(err.message || t('error'),'error'); }
+}
+
+async function editMessage(messageId) {
+  const newContent = prompt('Enter edited message:');
+  if (!newContent) return;
+  try {
+    await api(`/api/messages/${messageId}`, { method:'PATCH', body: JSON.stringify({ content: newContent }) });
+    await loadMessages(state.activeCoupleId);
+  } catch (err) { toast(err.message || t('error'),'error'); }
+}
+
+async function deleteMessage(messageId) {
+  if (!confirm('Delete this message?')) return;
+  try {
+    await api(`/api/messages/${messageId}`, { method:'DELETE' });
+    await loadMessages(state.activeCoupleId);
+  } catch (err) { toast(err.message || t('error'),'error'); }
+}
+
+async function uploadAndSendMedia(file) {
+  if (!state.activeCoupleId) return;
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('couple_id', state.activeCoupleId);
+  formData.append('media_type', file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'voice');
+  try {
+    const uploadResult = await fetch(`${API_BASE}/api/messages/upload`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + state.token },
+      body: formData,
+    });
+    const data = await uploadResult.json();
+    if (!data.ok) throw new Error(data.error || 'Upload failed');
+    await api('/api/messages', { method:'POST', body: JSON.stringify({
+      couple_id: state.activeCoupleId,
+      content: '',
+      type: 'media',
+      media_type: data.media_type,
+      media_url: data.url,
+      media_metadata: data.media_metadata,
+    }) });
+    await loadMessages(state.activeCoupleId);
+  } catch (err) { toast(err.message || t('error'),'error'); }
+}
+
+async function showAIAnalysis(analysisType) {
+  const titles = { pattern: t('aiPattern'), misunderstanding: t('aiMisunderstanding'), reply_suggestion: t('aiReplySuggestion'), summary: t('aiConversationSummary') };
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    <div class=\"card\">
+      <div class=\"card-header\">
+        <button onclick=\"openCouple('${state.activeCoupleId}')\" class=\"btn btn-sm\" style=\"color:var(--text-muted);\">← ${t('back')}</button>
+        <span class=\"card-title\">${titles[analysisType]}</span>
+      </div>
+      <div id=\"aiOutput\" class=\"ai-output\">${t('connecting')}...</div>
+      <button class=\"btn btn-primary btn-full mb-8\" onclick=\"runAIAnalysis('${analysisType}')\">Generate Analysis</button>
+      <button onclick=\"openCouple('${state.activeCoupleId}')\" class=\"btn btn-outline btn-full\">${t('back')}</button>
+    </div>
+  `;
+  renderLangSelect();
+}
+
+async function runAIAnalysis(analysisType) {
+  const out = document.getElementById('aiOutput');
+  out.textContent = t('saving');
+  try {
+    const conversation = state.messages.map(m => `${m.sender_name || 'You'}: ${m.content}`).join('\n');
+    const result = await api('/api/ai/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ couple_id: state.activeCoupleId, conversation, analysis_type: analysisType })
+    });
+    out.textContent = result.reply;
+    out.style.fontStyle = 'normal';
+    out.style.color = 'var(--text)';
+    out.style.background = '#fff';
+    toast(t('success'),'success');
+  } catch (err) { out.textContent = err.message || t('error'); out.style.color = 'var(--error)'; }
 }
 
 // --- AI ---
