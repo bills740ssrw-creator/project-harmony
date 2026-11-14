@@ -290,3 +290,178 @@ CREATE TABLE IF NOT EXISTS ai_private_coaching (
 );
 
 CREATE INDEX IF NOT EXISTS idx_ai_private_coaching_user ON ai_private_coaching(user_id);
+
+-- ===== MODULE E: Relationship Intelligence & Memory =====
+
+-- Relationship health snapshots (track improvement over time)
+CREATE TABLE IF NOT EXISTS relationship_health (
+  id TEXT PRIMARY KEY,
+  couple_id TEXT NOT NULL,
+  overall_score INTEGER NOT NULL, -- 0-100
+  communication_score INTEGER,
+  conflict_resolution_score INTEGER,
+  intimacy_score INTEGER,
+  trust_score INTEGER,
+  goals_score INTEGER,
+  factors TEXT, -- JSON breakdown of factors
+  note TEXT,
+  recorded_by TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE,
+  FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_relationship_health_couple ON relationship_health(couple_id, created_at);
+
+-- Relationship timeline events (shared memories)
+CREATE TABLE IF NOT EXISTS timeline_events (
+  id TEXT PRIMARY KEY,
+  couple_id TEXT NOT NULL,
+  event_type TEXT NOT NULL, -- milestone, disagreement, resolution, memory, goal, commitment, insight
+  title TEXT NOT NULL,
+  description TEXT,
+  event_date TEXT NOT NULL,
+  metadata TEXT, -- JSON
+  created_by TEXT NOT NULL,
+  is_public INTEGER NOT NULL DEFAULT 1, -- 1 = visible to both, 0 = private to creator
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_timeline_events_couple ON timeline_events(couple_id, event_date);
+CREATE INDEX IF NOT EXISTS idx_timeline_events_type ON timeline_events(event_type);
+
+-- Memory corrections/deletions (audit trail for shared memory edits)
+CREATE TABLE IF NOT EXISTS memory_corrections (
+  id TEXT PRIMARY KEY,
+  couple_id TEXT NOT NULL,
+  original_type TEXT NOT NULL, -- timeline_event, message, commitment, goal
+  original_id TEXT NOT NULL,
+  field_name TEXT NOT NULL,
+  old_value TEXT,
+  new_value TEXT,
+  corrected_by TEXT NOT NULL,
+  corrected_at TEXT NOT NULL DEFAULT (datetime('now')),
+  reason TEXT,
+  FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE,
+  FOREIGN KEY (corrected_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_corrections_couple ON memory_corrections(couple_id);
+
+-- ===== MODULE F: Growth System =====
+
+-- Daily check-ins (mood, gratitude, connection)
+CREATE TABLE IF NOT EXISTS daily_checkins (
+  id TEXT PRIMARY KEY,
+  couple_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  checkin_date TEXT NOT NULL, -- YYYY-MM-DD
+  mood_score INTEGER, -- 1-10
+  connection_score INTEGER, -- 1-10
+  communication_score INTEGER, -- 1-10
+  gratitude_note TEXT,
+  concern_note TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE(couple_id, user_id, checkin_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_daily_checkins_couple_date ON daily_checkins(couple_id, checkin_date);
+
+-- Weekly relationship exercises
+CREATE TABLE IF NOT EXISTS weekly_exercises (
+  id TEXT PRIMARY KEY,
+  couple_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  exercise_type TEXT NOT NULL, -- communication, intimacy, conflict, gratitude, trust
+  assigned_date TEXT NOT NULL,
+  due_date TEXT,
+  completed_at TEXT,
+  status TEXT NOT NULL DEFAULT 'pending', -- pending, completed, skipped
+  completed_by TEXT,
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE,
+  FOREIGN KEY (completed_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_weekly_exercises_couple ON weekly_exercises(couple_id, status);
+CREATE INDEX IF NOT EXISTS idx_weekly_exercises_due ON weekly_exercises(due_date);
+
+-- 30-day improvement programmes
+CREATE TABLE IF NOT EXISTS improvement_programmes (
+  id TEXT PRIMARY KEY,
+  couple_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  focus_area TEXT NOT NULL, -- communication, conflict, intimacy, trust, goals
+  start_date TEXT NOT NULL,
+  end_date TEXT,
+  status TEXT NOT NULL DEFAULT 'active', -- active, completed, paused, abandoned
+  completion_percentage INTEGER DEFAULT 0,
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_improvement_programmes_couple ON improvement_programmes(couple_id, status);
+
+-- Programme daily tasks
+CREATE TABLE IF NOT EXISTS programme_tasks (
+  id TEXT PRIMARY KEY,
+  programme_id TEXT NOT NULL,
+  day_number INTEGER NOT NULL, -- 1-30
+  title TEXT NOT NULL,
+  description TEXT,
+  task_type TEXT NOT NULL, -- reflection, conversation, exercise, checkin
+  completed_at TEXT,
+  status TEXT NOT NULL DEFAULT 'pending', -- pending, completed, skipped
+  FOREIGN KEY (programme_id) REFERENCES improvement_programmes(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_programme_tasks_programme ON programme_tasks(programme_id, day_number);
+
+-- Individual improvement goals (private to each partner)
+CREATE TABLE IF NOT EXISTS individual_goals (
+  id TEXT PRIMARY KEY,
+  couple_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  goal_type TEXT NOT NULL, -- communication, listening, patience, empathy, etc.
+  target_date TEXT,
+  status TEXT NOT NULL DEFAULT 'active', -- active, completed, paused, abandoned
+  progress_percentage INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_individual_goals_user ON individual_goals(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_individual_goals_couple ON individual_goals(couple_id);
+
+-- Reminders
+CREATE TABLE IF NOT EXISTS reminders (
+  id TEXT PRIMARY KEY,
+  couple_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  remind_at TEXT NOT NULL,
+  reminder_type TEXT NOT NULL, -- commitment, goal, checkin, exercise, custom
+  is_sent INTEGER NOT NULL DEFAULT 0,
+  sent_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_reminders_couple ON reminders(couple_id, remind_at);
+CREATE INDEX IF NOT EXISTS idx_reminders_sent ON reminders(is_sent);

@@ -11,6 +11,8 @@ const coupleRoutes = require('./src/routes/couples');
 const messageRoutes = require('./src/routes/messages');
 const aiRoutes = require('./src/routes/ai');
 const goalRoutes = require('./src/routes/goals');
+const intelligenceRoutes = require('./src/routes/intelligence');
+const growthRoutes = require('./src/routes/growth');
 const { initDb } = require('./src/services/db');
 const { startWsServer } = require('./src/services/ws');
 
@@ -44,6 +46,8 @@ app.use('/api/couples', coupleRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/goals', goalRoutes);
+app.use('/api/intelligence', intelligenceRoutes);
+app.use('/api/growth', growthRoutes);
 
 // Serve static frontend
 app.use(express.static(path.join(__dirname, 'public')));
