@@ -429,7 +429,7 @@ function showAuth() {
           <h1>${isLogin ? t('signIn') : t('signUp')}</h1>
           <p>${isLogin ? 'Welcome back' : 'Join Project Harmony'}</p>
         </div>
-        <form id="authForm" onsubmit="handleAuth(event)">
+        <form id="authForm">
           <div class="form-group">
             <label>${t('email')}</label>
             <input type="email" id="regEmail" required placeholder="you@example.com">
@@ -470,13 +470,23 @@ function showAuth() {
         </form>
         <div class="form-footer">
           ${isLogin ? t('noAccount') + ' ' : t('haveAccount') + ' '}
-          <button type="button" onclick="toggleAuth()" class="btn btn-link" style="padding:0; background:none; color:var(--primary); font-weight:600;">
+          <button type="button" id="toggleAuthBtn" class="btn btn-link" style="padding:0; background:none; color:var(--primary); font-weight:600;">
             ${isLogin ? t('register') : t('login')}
           </button>
         </div>
       </div>
     </div>
   `;
+
+  // Wire up event listeners programmatically (more reliable than inline HTML handlers)
+  const form = document.getElementById('authForm');
+  if (form) {
+    form.onsubmit = (e) => handleAuth(e);
+  }
+  const toggleBtn = document.getElementById('toggleAuthBtn');
+  if (toggleBtn) {
+    toggleBtn.onclick = () => toggleAuth();
+  }
 }
 
 window.toggleAuth = () => { window._authMode = window._authMode === 'login' ? 'register' : 'login'; showAuth(); };
@@ -1127,3 +1137,12 @@ if (state.token) {
 } else {
   showAuth();
 }
+
+// Global error handler to surface any JS errors as toasts
+window.onerror = (msg, url, line) => {
+  console.error('JS Error:', msg, url, line);
+  const t = (k) => { const L = LABELS[state.language] || LABELS.en; return L[k] || k; };
+  const el = document.getElementById('toast');
+  if (el) { el.textContent = 'JS Error: ' + msg; el.className = 'toast show'; setTimeout(() => el.classList.remove('show'), 5000); }
+  return true;
+};
