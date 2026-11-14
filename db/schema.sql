@@ -242,3 +242,51 @@ CREATE TABLE IF NOT EXISTS user_presence (
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+-- AI participation consent per couple (both partners must consent)
+CREATE TABLE IF NOT EXISTS ai_consent (
+  id TEXT PRIMARY KEY,
+  couple_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  consented INTEGER NOT NULL DEFAULT 0, -- 0 = no, 1 = yes
+  consented_at TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE(couple_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_consent_couple ON ai_consent(couple_id);
+
+-- Shared AI conversation analysis records (transparent to both partners)
+CREATE TABLE IF NOT EXISTS ai_conversation_analysis (
+  id TEXT PRIMARY KEY,
+  couple_id TEXT NOT NULL,
+  message_id TEXT,
+  analysis_type TEXT NOT NULL, -- pattern, misunderstanding, summary, insight, reply_suggestion
+  result TEXT, -- JSON
+  created_by TEXT NOT NULL, -- user who triggered
+  visible_to_both INTEGER NOT NULL DEFAULT 1, -- always 1 for shared analysis
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE,
+  FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE SET NULL,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_conversation_analysis_couple ON ai_conversation_analysis(couple_id);
+
+-- Private AI coaching records (owner-only unless explicitly shared)
+CREATE TABLE IF NOT EXISTS ai_private_coaching (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  couple_id TEXT,
+  message_content TEXT,
+  coaching_result TEXT, -- JSON
+  shared_with_couple INTEGER NOT NULL DEFAULT 0, -- 0 = private, 1 = shared
+  shared_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_private_coaching_user ON ai_private_coaching(user_id);

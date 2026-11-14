@@ -22,6 +22,38 @@ Analyze the couple's recent communication and relationship data. Identify patter
     translation: `${base}
 
 Translate the following relationship content into ${language}, preserving tone, warmth, and meaning.`,
+    pattern: `${base}
+
+Analyze this conversation for communication patterns. Identify:
+1. Recurring topics or themes
+2. Tone shifts (positive -> negative or vice versa)
+3. Communication habits (who initiates, who apologizes, who withdraws)
+4. Positive moments to reinforce
+Present findings gently and objectively.`,
+    misunderstanding: `${base}
+
+Review this conversation for potential misunderstandings. Identify:
+1. Where one partner may have misread the other's intent or tone
+2. Assumptions being made without verification
+3. Clarifying questions that could prevent escalation
+4. Suggested reframes to clear up confusion
+Be neutral and helpful.`,
+    reply_suggestion: `${base}
+
+Suggest constructive replies for this conversation. Provide:
+1. 2-3 specific wording options the user could send
+2. Why each option works (I-statements, empathy, clarity)
+3. What to avoid (blame, absolutes like "always/never", sarcasm)
+Keep it practical and kind.`,
+    summary: `${base}
+
+Generate a conversation summary. Include:
+1. Key topics discussed
+2. Points of agreement
+3. Points of disagreement or tension
+4. Action items or follow-ups mentioned
+5. Overall tone of the conversation
+Be objective and concise.`,
   };
   return prompts[type] || base;
 }
@@ -109,4 +141,57 @@ async function translate({ text, targetLanguage }) {
   return callAi(msgs);
 }
 
-module.exports = { mediate, coach, insight, translate };
+async function analyzePattern({ conversation, language, coupleContext = {} }) {
+  const msgs = [
+    { role: 'system', content: systemPrompt('pattern', { language }) },
+    {
+      role: 'user',
+      content: `Analyze this conversation for patterns:\n${conversation}\n\nContext: ${JSON.stringify(coupleContext)}`,
+    },
+  ];
+  return callAi(msgs);
+}
+
+async function identifyMisunderstanding({ conversation, language, coupleContext = {} }) {
+  const msgs = [
+    { role: 'system', content: systemPrompt('misunderstanding', { language }) },
+    {
+      role: 'user',
+      content: `Review this conversation for potential misunderstandings:\n${conversation}\n\nContext: ${JSON.stringify(coupleContext)}`,
+    },
+  ];
+  return callAi(msgs);
+}
+
+async function suggestReply({ conversation, language, coupleContext = {} }) {
+  const msgs = [
+    { role: 'system', content: systemPrompt('reply_suggestion', { language }) },
+    {
+      role: 'user',
+      content: `Suggest constructive replies for this conversation:\n${conversation}\n\nContext: ${JSON.stringify(coupleContext)}`,
+    },
+  ];
+  return callAi(msgs);
+}
+
+async function summarizeConversation({ conversation, language, coupleContext = {} }) {
+  const msgs = [
+    { role: 'system', content: systemPrompt('summary', { language }) },
+    {
+      role: 'user',
+      content: `Generate a conversation summary:\n${conversation}\n\nContext: ${JSON.stringify(coupleContext)}`,
+    },
+  ];
+  return callAi(msgs);
+}
+
+module.exports = {
+  mediate,
+  coach,
+  insight,
+  translate,
+  analyzePattern,
+  identifyMisunderstanding,
+  suggestReply,
+  summarizeConversation,
+};
