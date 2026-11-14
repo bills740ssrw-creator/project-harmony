@@ -52,16 +52,25 @@ CREATE TABLE IF NOT EXISTS messages (
   couple_id TEXT NOT NULL,
   sender_id TEXT NOT NULL,
   content TEXT NOT NULL,
-  type TEXT NOT NULL DEFAULT 'text', -- text, system, ai_mediation, ai_coaching
+  type TEXT NOT NULL DEFAULT 'text', -- text, system, ai_mediation, ai_coaching, media
+  media_type TEXT, -- image, video, voice, gif, sticker
+  media_url TEXT,
+  media_thumbnail TEXT,
+  media_metadata TEXT, -- JSON: dimensions, duration, size
+  reply_to TEXT, -- message id being replied to
+  edited_at TEXT,
+  deleted_at TEXT, -- soft delete
   metadata TEXT, -- JSON
   read_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE,
-  FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (reply_to) REFERENCES messages(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_couple ON messages(couple_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_messages_reply_to ON messages(reply_to);
 
 -- Relationship goals (shared by a couple)
 CREATE TABLE IF NOT EXISTS goals (
@@ -196,3 +205,40 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token_hash);
+
+-- Message reactions (emoji reactions on messages)
+CREATE TABLE IF NOT EXISTS message_reactions (
+  id TEXT PRIMARY KEY,
+  message_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  emoji TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE(message_id, user_id, emoji)
+);
+
+CREATE INDEX IF NOT EXISTS idx_message_reactions_message ON message_reactions(message_id);
+
+-- Message read receipts
+CREATE TABLE IF NOT EXISTS message_read_receipts (
+  id TEXT PRIMARY KEY,
+  message_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  read_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE(message_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_message_read_receipts_message ON message_read_receipts(message_id);
+
+-- User online presence
+CREATE TABLE IF NOT EXISTS user_presence (
+  user_id TEXT PRIMARY KEY,
+  status TEXT NOT NULL DEFAULT 'offline', -- online, offline, away
+  last_seen TEXT NOT NULL DEFAULT (datetime('now')),
+  socket_id TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
