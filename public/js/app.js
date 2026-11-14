@@ -396,25 +396,42 @@ function t(key) {
 }
 
 function toast(msg, type = 'info') {
-  const el = document.getElementById('toast');
+  let el = document.getElementById('toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast';
+    el.className = 'toast';
+    document.body.appendChild(el);
+  }
   el.textContent = msg;
   el.className = 'toast show';
   setTimeout(() => el.classList.remove('show'), 3000);
 }
 
 async function api(path, opts = {}) {
-  const headers = { 'Content-Type': 'application/json', ...opts.headers };
-  if (state.token) headers.Authorization = 'Bearer ' + state.token;
-  const res = await fetch(API_BASE + path, { ...opts, headers });
-  let data;
-  try { data = await res.json(); } catch { data = {}; }
-  if (!res.ok) {
-    const err = new Error(data.detail || data.error || `Request failed: ${res.status}`);
-    err.status = res.status;
-    err.data = data;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const headers = { 'Content-Type': 'application/json', ...opts.headers };
+    if (state.token) headers.Authorization = 'Bearer ' + state.token;
+    const res = await fetch(API_BASE + path, { ...opts, headers, signal: controller.signal });
+    clearTimeout(timeoutId);
+    let data;
+    try { data = await res.json(); } catch { data = {}; }
+    if (!res.ok) {
+      const err = new Error(data.detail || data.error || `Request failed: ${res.status}`);
+      err.status = res.status;
+      err.data = data;
+      throw err;
+    }
+    return data;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw new Error('Request timed out. Please check your connection.');
+    }
     throw err;
   }
-  return data;
 }
 
 // --- Auth ---
@@ -493,27 +510,46 @@ window.toggleAuth = () => { window._authMode = window._authMode === 'login' ? 'r
 
 async function handleAuth(e) {
   e.preventDefault();
-  const btn = document.getElementById('authBtn');
-  btn.disabled = true; btn.textContent = t('saving');
-  const email = document.getElementById('regEmail').value;
-  const password = document.getElementById('regPassword').value;
-  const isLogin = window._authMode === 'login';
   try {
-    if (isLogin) {
-      const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
-      setAuth(data.token, data.user);
-    } else {
-      const name = document.getElementById('regName').value;
-      const country = document.getElementById('regCountry').value;
-      const language = document.getElementById('regLang').value;
-      const data = await api('/api/auth/register', { method: 'POST', body: JSON.stringify({ email, password, name, country, language }) });
-      setAuth(data.token, data.user);
-      state.language = language;
+    const btn = document.getElementById('authBtn');
+    if (!btn) {
+      toast('Auth button not found', 'error');
+      return;
     }
+    btn.disabled = true;
+    btn.textContent = t('saving');
+
+    const email = document.getElementById('regEmail')?.value || '';
+    const password = document.getElementById('regPassword')?.value || '';
+    const isLogin = window._authMode === 'login';
+
+    let data;
+    if (isLogin) {
+      data = await api('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+    } else {
+      const name = document.getElementById('regName')?.value || '';
+      const country = document.getElementById('regCountry')?.value || 'US';
+      const language = document.getElementById('regLang')?.value || 'en';
+      data = await api('/api/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ email, password, name, country, language }),
+      });
+    }
+
+    setAuth(data.token, data.user);
+    if (!isLogin) state.language = data.user.language || 'en';
     showApp();
   } catch (err) {
+    console.error('Auth error:', err);
+    const btn = document.getElementById('authBtn');
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = (window._authMode === 'login') ? t('login') : t('register');
+    }
     toast(err.message || t('error'), 'error');
-    btn.disabled = false; btn.textContent = isLogin ? t('login') : t('register');
   }
 }
 
